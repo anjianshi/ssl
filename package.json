@@ -1,0 +1,28 @@
+{
+  "name": "@anjianshi/ssl",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "watch": "tsc --watch",
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@anjianshi/utils": "^2.4.16",
+    "@types/lodash": "^4.17.13",
+    "acme-client": "^5.4.0",
+    "chalk": "^5.3.0",
+    "dayjs": "^1.11.13",
+    "lodash": "^4.17.21",
+    "node-scp": "^0.0.23"
+  },
+  "devDependencies": {
+    "@anjianshi/presets-eslint-node": "^4.0.15",
+    "@anjianshi/presets-prettier": "^3.0.1",
+    "@anjianshi/presets-typescript": "^3.2.3",
+    "@types/node": "^22.9.0",
+    "@types/ssh2": "^1.15.1",
+    "typescript": "^5.6.3"
+  },
+  "prettier": "@anjianshi/presets-prettier/prettierrc.js"
+}

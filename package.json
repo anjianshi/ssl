@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "watch": "tsc --watch",
-    "build": "tsc",
+    "watch": "rm -rf dist && tsc --watch",
+    "build": "rm -rf dist && tsc",
     "start": "node dist/index.js"
   },
   "dependencies": {

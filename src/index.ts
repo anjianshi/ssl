@@ -1,2 +1,4 @@
 import { runTask } from './task.js'
-await runTask()
+
+const inputWorkDirectory = process.argv[2]
+await runTask(inputWorkDirectory)

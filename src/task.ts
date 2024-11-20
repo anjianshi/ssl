@@ -6,6 +6,7 @@ import _ from 'lodash'
 import { type Logger, rootLogger, getCommonNameFromDomainNames } from './common.js'
 import { deployCertificate } from './deploy/index.js'
 import {
+  confirmWorkDirectory,
   getSavedAccount,
   saveAccount,
   getSavedCertificate,
@@ -19,20 +20,29 @@ import { getAcmeClient, createAccount, createCSR, challengeCertificate } from '.
 const mainLogger = rootLogger.getChild('task')
 
 /** 执行任务 */
-export async function runTask() {
-  mainLogger.info('开始申请、更新证书')
+export async function runTask(inputWorkDirectory?: string) {
+  const { resolved: workDirectory, isValid: isValidWorkDirectory } = await confirmWorkDirectory(
+    inputWorkDirectory ?? process.cwd(),
+  )
+  if (!isValidWorkDirectory) {
+    mainLogger.error('当前目录找不到 config.json，运行失败：' + workDirectory)
+    return
+  }
+  mainLogger.info('工作目录：' + workDirectory)
 
-  const config = await getConfig()
-  const accountKey = await initializeAccount(config)
+  mainLogger.info('开始申请、更新证书')
+  const config = await getConfig(workDirectory)
+  if (!config) return
+  const accountKey = await initializeAccount(workDirectory, config)
   if (!accountKey) return
 
   for (const certificateConfig of config.certificates) {
-    await maintainCertificate(config.staging, accountKey, certificateConfig)
+    await maintainCertificate(workDirectory, config.staging, accountKey, certificateConfig)
   }
 }
 
 /** 初始化 CA 账号 */
-async function initializeAccount(config: Config) {
+async function initializeAccount(workDirectory: string, config: Config) {
   const { staging } = config
 
   if (typeof config.account === 'string') {
@@ -40,7 +50,7 @@ async function initializeAccount(config: Config) {
     return config.account
   }
 
-  const savedAccount = await getSavedAccount(staging)
+  const savedAccount = await getSavedAccount(workDirectory, staging)
   if (savedAccount) {
     mainLogger.info('使用已存在的 CA 账号')
     return savedAccount
@@ -49,7 +59,7 @@ async function initializeAccount(config: Config) {
   const res = await createAccount(staging, config.account)
   if (res.success) {
     const { accountKey, accountUrl } = res.data
-    await saveAccount(config.staging, accountKey)
+    await saveAccount(workDirectory, config.staging, accountKey)
     mainLogger.info(`新建 CA 账号${staging ? '(staging)' : ''}`, { accountUrl })
     return accountKey
   } else {
@@ -60,6 +70,7 @@ async function initializeAccount(config: Config) {
 
 /** 处理单个证书 */
 async function maintainCertificate(
+  workDirectory: string,
   staging: boolean,
   accountKey: string,
   certificateConfig: CertificateConfig,
@@ -70,7 +81,7 @@ async function maintainCertificate(
   const logger = rootLogger.getChild('task').getChild(commonName)
 
   // 申请证书
-  let savedCertificate = await getSavedCertificate(staging, domainNames)
+  let savedCertificate = await getSavedCertificate(workDirectory, staging, domainNames)
   if (!savedCertificate || (await confirmShouldRenew(logger, savedCertificate.certificate))) {
     logger.info(`申请证书${staging ? '(staging)' : ''}`, domainNames)
 
@@ -86,7 +97,13 @@ async function maintainCertificate(
     }
     const certificate = challengeRes.data
     logger.info('证书申请成功', domainNames)
-    savedCertificate = await saveCertificate(staging, domainNames, certificate, certificateKey)
+    savedCertificate = await saveCertificate(
+      workDirectory,
+      staging,
+      domainNames,
+      certificate,
+      certificateKey,
+    )
   }
 
   // 部署证书

@@ -1,7 +1,5 @@
 import crypto from 'node:crypto'
-import fs from 'node:fs'
 import path from 'node:path'
-import { getDirectoryPath } from '@anjianshi/utils/env-node/index.js'
 import {
   logger,
   initLogger,
@@ -12,30 +10,23 @@ import acme from 'acme-client'
 
 /**
  * ---------------------------
- * 环境变量
- * ---------------------------
- */
-
-export const root = path.resolve(getDirectoryPath(import.meta.url), '../')
-
-export const varDir = path.join(root, 'var')
-if (!fs.existsSync(varDir)) fs.mkdirSync(varDir)
-
-/**
- * ---------------------------
  * 初始化日志
  * ---------------------------
  */
-initLogger()
-logger.setLevel('debug')
-logger.addHandler(
-  new FileHandler({
-    dir: path.join(varDir, 'logs'),
-  }),
-)
-
 export { logger as rootLogger }
 export { Logger }
+
+initLogger()
+logger.setLevel('debug')
+
+/** 开启文件日志 */
+export function enableFileLogs(workDirectory: string) {
+  logger.addHandler(
+    new FileHandler({
+      dir: path.join(workDirectory, 'logs'),
+    }),
+  )
+}
 
 /**
  * ---------------------------

@@ -5,33 +5,28 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { safeParseJSON } from '@anjianshi/utils'
 import { isFileExists } from '@anjianshi/utils/env-node/fs.js'
-import { varDir } from '../common.js'
 
-const accountFile = path.join(varDir, 'account.json')
-let savedAccounts = undefined as
-  | {
-      staging: string | null
-      production: string | null
-    }
-  | undefined
-type SavedAccounts = NonNullable<typeof savedAccounts>
-
-export async function getSavedAccount(staging: boolean) {
-  const key = staging ? 'staging' : 'production'
-  if (savedAccounts === undefined) {
-    const empty = { staging: null, production: null }
-    // eslint-disable-next-line require-atomic-updates
-    savedAccounts = (await isFileExists(accountFile))
-      ? (safeParseJSON<SavedAccounts>(await fs.readFile(accountFile, 'utf-8')) ?? empty)
-      : empty
-  }
-  return savedAccounts[key]
+interface SavedAccounts {
+  staging?: string
+  production?: string
 }
 
-export async function saveAccount(staging: boolean, accountKey: string) {
-  await getSavedAccount(staging)
+async function getSavedAccounts(workDirectory: string) {
+  const filepath = path.join(workDirectory, 'account.json')
+  const savedAccounts: SavedAccounts = (await isFileExists(filepath))
+    ? (safeParseJSON<SavedAccounts>(await fs.readFile(filepath, 'utf-8')) ?? {})
+    : {}
+  return { filepath, savedAccounts }
+}
 
+export async function getSavedAccount(workDirectory: string, staging: boolean) {
+  const { savedAccounts } = await getSavedAccounts(workDirectory)
+  return savedAccounts[staging ? 'staging' : 'production'] ?? null
+}
+
+export async function saveAccount(workDirectory: string, staging: boolean, accountKey: string) {
+  const { filepath, savedAccounts } = await getSavedAccounts(workDirectory)
   const key = staging ? 'staging' : 'production'
-  savedAccounts![key] = accountKey
-  await fs.writeFile(accountFile, JSON.stringify(savedAccounts, null, 2))
+  savedAccounts[key] = accountKey
+  await fs.writeFile(filepath, JSON.stringify(savedAccounts, null, 2))
 }

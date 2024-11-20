@@ -10,7 +10,7 @@ import {
   type Definition as ValidateDefinition,
 } from '@anjianshi/utils/validators/index.js'
 import _ from 'lodash'
-import { varDir, rootLogger } from '../common.js'
+import { rootLogger } from '../common.js'
 import type {
   TargetConfig,
   SSHTargetConfig,
@@ -19,13 +19,6 @@ import type {
   QiniuTargetConfig,
 } from '../deploy/index.js'
 import type { CreateAccountConfig, DNSChallengeConfig, CSRConfig } from '../request/index.js'
-
-const logger = rootLogger.getChild('config')
-
-function exit(...args: unknown[]): never {
-  logger.error(...args)
-  process.exit(1)
-}
 
 // -----------------------------
 // 类型定义（最终整理得到的）
@@ -308,35 +301,41 @@ const configValidator = getValidator({
 // 读取、验证配置
 // -----------------------------
 
-const configFile = path.join(varDir, 'config.json')
-let inputConfig: InputConfig | undefined
-let config: Config | undefined
+const logger = rootLogger.getChild('config')
+
+function failed(...messages: unknown[]) {
+  logger.error(...messages)
+  return null
+}
 
 /**
  * 读取配置内容
  * - 若 formatted 为 true（默认），则返回格式化后的配置（所有 preset 内容都替换到实际配置中）
  * - 若 formatted 为 false，则原样返回从文件中读取到的 config，不做进一步格式化
  */
-async function getConfig(formatted?: true): Promise<Config>
-async function getConfig(formatted: false): Promise<InputConfig>
-async function getConfig(formatted = true): Promise<Config | InputConfig> {
-  if (!formatted && inputConfig) return inputConfig
-  if (formatted && config) return config
-  if (!(await isFileExists(configFile))) exit('找不到配置文件：' + configFile)
+async function getConfig(workDirectory: string, formatted?: true): Promise<Config | null>
+async function getConfig(workDirectory: string, formatted: false): Promise<InputConfig | null>
+async function getConfig(
+  workDirectory: string,
+  formatted = true,
+): Promise<Config | InputConfig | null> {
+  const configFile = path.join(workDirectory, 'config.json')
+  if (!(await isFileExists(configFile))) return failed('找不到配置文件：' + configFile)
 
   const raw = safeParseJSON<Record<string, string>>(await fs.readFile(configFile, 'utf-8'))
-  if (!raw) exit('配置文件不是合法的 JSON 文件')
+  if (!raw) return failed('配置文件不是合法的 JSON 文件')
 
   const result = configValidator(raw)
-  if (!result.success) exit('配置文件格式错误', result.message)
+  if (!result.success) return failed('配置文件格式错误', result.message)
 
-  inputConfig = result.data // eslint-disable-line require-atomic-updates
-  config = formatInputConfig(inputConfig) // eslint-disable-line require-atomic-updates
+  const inputConfig = result.data
+  const config = formatInputConfig(inputConfig) // 就算不需要格式化后的 config，也要格式化一下，保证 config 内容合法
+  if (!config) return null
   return formatted ? config : inputConfig
 }
 export { getConfig }
 
-function formatInputConfig(inputConfig: InputConfig): Config {
+function formatInputConfig(inputConfig: InputConfig): Config | null {
   const certificates: CertificateConfig[] = []
   for (const {
     csr: inputCsr,
@@ -348,11 +347,11 @@ function formatInputConfig(inputConfig: InputConfig): Config {
     let challenge: DNSChallengeConfig
     if (typeof inputChallenge === 'string') {
       if (!inputConfig.challenges[inputChallenge])
-        exit(`challenge preset '${inputChallenge}' 不存在`)
+        return failed(`challenge preset '${inputChallenge}' 不存在`)
       challenge = inputConfig.challenges[inputChallenge]
     } else if ('preset' in inputChallenge) {
       const { preset, ...rest } = inputChallenge
-      if (!inputConfig.challenges[preset]) exit(`challenge preset '${preset}' 不存在`)
+      if (!inputConfig.challenges[preset]) return failed(`challenge preset '${preset}' 不存在`)
       challenge = { ...inputConfig.challenges[preset], ...rest }
     } else {
       challenge = inputChallenge
@@ -361,17 +360,20 @@ function formatInputConfig(inputConfig: InputConfig): Config {
     const targets: TargetConfig[] = []
     for (const inputTarget of inputTargets ?? []) {
       if (typeof inputTarget === 'string') {
-        if (!inputConfig.targets[inputTarget]) exit(`target preset '${inputTarget}' 不存在`)
+        if (!inputConfig.targets[inputTarget])
+          return failed(`target preset '${inputTarget}' 不存在`)
         const preset = inputConfig.targets[inputTarget]
         if (preset.type === 'ssh')
-          exit(`ssh 类型的 target preset 在证书配置里不能只传名字（${inputTarget}）`)
+          return failed(`ssh 类型的 target preset 在证书配置里不能只传名字（${inputTarget}）`)
         targets.push(preset)
       } else if ('preset' in inputTarget) {
         const { preset: presetName, ...rest } = inputTarget
-        if (!inputConfig.targets[presetName]) exit(`target preset '${presetName}' 不存在`)
+        if (!inputConfig.targets[presetName]) return failed(`target preset '${presetName}' 不存在`)
         const preset = inputConfig.targets[presetName]
         if (preset.type !== 'ssh')
-          exit(`target preset '${presetName}' 不是 ssh 类型，但在证书配置里作为 ssh 类型被引用`)
+          return failed(
+            `target preset '${presetName}' 不是 ssh 类型，但在证书配置里作为 ssh 类型被引用`,
+          )
         const target: SSHTargetConfig = { ...preset, ...rest }
         targets.push(target)
       } else {
@@ -381,11 +383,6 @@ function formatInputConfig(inputConfig: InputConfig): Config {
 
     certificates.push({ csr, challenge, targets })
   }
-  return { ..._.pick(inputConfig, 'staging', 'account'), certificates }
-}
-
-/** 保存配置内容 */
-export async function saveConfig(_config: Config) {
-  config = _config
-  await fs.writeFile(configFile, JSON.stringify(config, null, 2))
+  const config = { ..._.pick(inputConfig, 'staging', 'account'), certificates }
+  return config
 }

@@ -4,7 +4,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { isFileExists, isDirectoryExists } from '@anjianshi/utils/env-node/index.js'
-import { varDir, sha256, getCommonNameFromDomainNames } from '../common.js'
+import { sha256, getCommonNameFromDomainNames } from '../common.js'
 
 export interface SavedCertificate {
   certificate: string
@@ -16,17 +16,19 @@ export interface SavedCertificate {
 export const certficateFilename = 'fullchain.pem'
 export const certficateKeyFilename = 'privkey.pem'
 
-const certificatesDirpath = path.join(varDir, 'certificates')
-
-export function getCertificateDir(staging: boolean, domainNames: string[]) {
+export function getCertificateDir(workDirectory: string, staging: boolean, domainNames: string[]) {
   const prefix = staging ? 'staging-' : ''
   const commonName = getCommonNameFromDomainNames(domainNames)
   const dirname = `${prefix}${commonName}-` + sha256(domainNames.join('|')).slice(-8)
-  return path.join(certificatesDirpath, dirname)
+  return path.join(workDirectory, 'certificates', dirname)
 }
 
-export async function getSavedCertificate(staging: boolean, domainNames: string[]) {
-  const dirpath = getCertificateDir(staging, domainNames)
+export async function getSavedCertificate(
+  workDirectory: string,
+  staging: boolean,
+  domainNames: string[],
+) {
+  const dirpath = getCertificateDir(workDirectory, staging, domainNames)
   const certificatePath = path.join(dirpath, certficateFilename)
   const certificateKeyPath = path.join(dirpath, certficateKeyFilename)
   if (!(await isFileExists(certificatePath)) || !(await isFileExists(certificateKeyPath)))
@@ -44,12 +46,13 @@ export async function getSavedCertificate(staging: boolean, domainNames: string[
 }
 
 export async function saveCertificate(
+  workDirectory: string,
   staging: boolean,
   domainNames: string[],
   certificate: string | Buffer,
   certificateKey: string | Buffer,
 ) {
-  const dirpath = getCertificateDir(staging, domainNames)
+  const dirpath = getCertificateDir(workDirectory, staging, domainNames)
   if (!(await isDirectoryExists(dirpath))) await fs.mkdir(dirpath, { recursive: true })
 
   const certificatePath = path.join(dirpath, certficateFilename)

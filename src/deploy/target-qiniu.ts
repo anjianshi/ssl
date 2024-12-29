@@ -96,7 +96,7 @@ export async function deployToQiniu(
     v => v.protocol === 'https' && includeDomain(info.domains.altNames, v.name),
   )
   if (!domainsToDeploy.length) {
-    logger.info('没有待部署的域名')
+    logger.info('没有需要更新的域名')
     return true
   }
 

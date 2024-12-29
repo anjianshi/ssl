@@ -140,7 +140,7 @@ export async function deployToAliyun(
     v => v.EnableHttps && includeDomain(domainNames, v.Domain) && v.CertId !== certificateId,
   )
   if (!matchedResources.length) {
-    logger.info('没有待部署的 CDN 域名')
+    logger.info('没有需要更新的 CDN 域名')
     return true
   }
 

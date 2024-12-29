@@ -6,9 +6,10 @@ import { isFileExists } from '@anjianshi/utils/env-node/fs.js'
  */
 export async function confirmWorkDirectory(workDirectory: string) {
   const resolved = path.resolve(workDirectory)
-  const configFilepath = path.join(resolved, 'config.json')
+  const configFilepaths = [path.join(resolved, 'config.json5'), path.join(resolved, 'config.json')]
+  const isValid = (await Promise.all(configFilepaths.map(isFileExists))).some(v => v)
   return {
     resolved,
-    isValid: await isFileExists(configFilepath),
+    isValid,
   }
 }

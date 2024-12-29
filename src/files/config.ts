@@ -9,6 +9,7 @@ import {
   getValidator,
   type Definition as ValidateDefinition,
 } from '@anjianshi/utils/validators/index.js'
+import JSON5 from 'json5'
 import _ from 'lodash'
 import { rootLogger } from '../common.js'
 import type {
@@ -169,6 +170,7 @@ const definitions = {
         'port',
         'username',
         'identityFile',
+        'setupCommand',
       ),
     } satisfies ValidateDefinition
   },
@@ -319,11 +321,21 @@ async function getConfig(
   workDirectory: string,
   formatted = true,
 ): Promise<Config | InputConfig | null> {
-  const configFile = path.join(workDirectory, 'config.json')
-  if (!(await isFileExists(configFile))) return failed('找不到配置文件：' + configFile)
+  let useJSON5 = true
+  let configFile = path.join(workDirectory, 'config.json5')
+  if (!(await isFileExists(configFile))) {
+    useJSON5 = false
+    configFile = path.join(workDirectory, 'config.json')
+    if (!(await isFileExists(configFile))) {
+      return failed('找不到配置文件：' + configFile)
+    }
+  }
 
-  const raw = safeParseJSON<Record<string, string>>(await fs.readFile(configFile, 'utf-8'))
-  if (!raw) return failed('配置文件不是合法的 JSON 文件')
+  const configText = await fs.readFile(configFile, 'utf-8')
+  const raw: Record<string, string> | undefined = useJSON5
+    ? safeParseJSON5(configText)
+    : safeParseJSON(configText)
+  if (!raw) return failed('配置文件不是合法的 JSON5 或 JSON 文件')
 
   const result = configValidator(raw)
   if (!result.success) return failed('配置文件格式错误', result.message)
@@ -335,6 +347,14 @@ async function getConfig(
 }
 export { getConfig }
 
+// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters
+function safeParseJSON5<T>(json: string): T | undefined {
+  try {
+    return JSON5.parse(json)
+  } catch (e) {
+    return undefined
+  }
+}
 function formatInputConfig(inputConfig: InputConfig): Config | null {
   const certificates: CertificateConfig[] = []
   for (const {

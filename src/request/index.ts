@@ -4,8 +4,9 @@
 import { success, failed } from '@anjianshi/utils'
 import acme from 'acme-client'
 import { rootLogger } from '../common.js'
-import { AliyunDNSChallenge } from './challenge-aliyun.js'
-import { TencentCloudDNSChallenge } from './challenge-tencent-cloud.js'
+import { AliyunDNSActions } from './aliyun.js'
+import { ChallengeHandler } from './challenge-handler.js'
+import { TencentCloudDNSActions } from './tencent-cloud.js'
 
 // -----------------------------------
 // 类型定义
@@ -131,9 +132,10 @@ export async function challengeCertificate(
   csr: string,
   config: DNSChallengeConfig,
 ) {
-  const ChallengeClass =
-    config.provider === 'tencent-cloud' ? TencentCloudDNSChallenge : AliyunDNSChallenge
-  const challengeHandler = new ChallengeClass(config.secretId, config.secretKey, config.ttl)
+  const ActionsClass =
+    config.provider === 'tencent-cloud' ? TencentCloudDNSActions : AliyunDNSActions
+  const actions = new ActionsClass(config.secretId, config.secretKey, config.ttl)
+  const challengeHandler = new ChallengeHandler(config.provider, actions)
   try {
     const certificate = await client.auto({
       csr,

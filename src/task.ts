@@ -19,8 +19,12 @@ import { getAcmeClient, createAccount, createCSR, challengeCertificate } from '.
 
 const mainLogger = rootLogger.getChild('task')
 
-/** 执行任务 */
-export async function runTask(inputWorkDirectory?: string) {
+/**
+ * 执行任务
+ * inputWorkDirectory: 指定工作目录，未指定则使用当前目录
+ * confirmOnly: 若为 true 则只确认工具能否正常运行，不实际申请和部署证书
+ */
+export async function runTask(inputWorkDirectory?: string, confirmOnly = false) {
   const { resolved: workDirectory, isValid: isValidWorkDirectory } = await confirmWorkDirectory(
     inputWorkDirectory ?? process.cwd(),
   )
@@ -30,12 +34,13 @@ export async function runTask(inputWorkDirectory?: string) {
   }
   mainLogger.info('工作目录：' + workDirectory)
 
-  mainLogger.info('开始申请、更新证书')
+  if (!confirmOnly) mainLogger.info('开始申请、更新证书')
   const config = await getConfig(workDirectory)
   if (!config) return
   const accountKey = await initializeAccount(workDirectory, config)
   if (!accountKey) return
 
+  if (confirmOnly) return
   for (const certificateConfig of config.certificates) {
     await maintainCertificate(workDirectory, config.staging, accountKey, certificateConfig)
   }
@@ -116,7 +121,7 @@ async function maintainCertificate(
     targetLogger.info(`部署证书（${target.type}）...`)
 
     const result = await deployCertificate(savedCertificate, target)
-    if (result) targetLogger.info(`部署成功（${target.type}）`)
+    if (result) targetLogger.info(`部署完成（${target.type}）`)
     else logger.error(`部署失败（${target.type}）`)
   }
 }

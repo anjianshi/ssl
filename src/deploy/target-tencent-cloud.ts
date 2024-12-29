@@ -71,7 +71,7 @@ export async function deployToTenCentCloud(
       v.Https.CertInfo?.CertId !== certificateId,
   )
   if (!matchedCdnList.length) {
-    logger.info('没有待部署的 CDN 域名')
+    logger.info('没有需要更新的 CDN 域名')
     return true
   }
 

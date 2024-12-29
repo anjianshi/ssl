@@ -84,13 +84,18 @@ export async function execute(command: string) {
     subprocess.stdout.on('data', data => output.push(String(data)))
     subprocess.stderr.on('data', data => output.push(String(data)))
     subprocess.on('close', code => {
+      const finalOutput = beautifyOutput(output.join(''))
       if (code === 0) {
-        logger.debug(output.join(''))
+        if (finalOutput) logger.debug(finalOutput)
         resolve(true)
       } else {
-        logger.error(output.join(''))
+        logger.error(finalOutput || `命令执行失败，code=${code}`)
         resolve(false)
       }
     })
   })
+}
+
+function beautifyOutput(content: string) {
+  return content.includes('\n') ? '\n' + content : content
 }

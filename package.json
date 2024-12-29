@@ -1,6 +1,6 @@
 {
   "name": "@anjianshi/ssl",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "description": "Auto request and deploy SSL certificate",
   "homepage": "https://github.com/anjianshi/ssl",
   "bugs": {
